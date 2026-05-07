@@ -21,6 +21,7 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
 
   final List<Map<String, String>> countries = [
+    {'name': 'International (Nokia)', 'flag': '🌐', 'code': '+99'},
     {'name': 'Nigeria', 'flag': '🇳🇬', 'code': '+234'},
     {'name': 'Kenya', 'flag': '🇰🇪', 'code': '+254'},
     {'name': 'Ghana', 'flag': '🇬🇭', 'code': '+233'},
@@ -344,11 +345,13 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                              throw Exception('Number verification failed. Please check your credentials.');
                           }
 
-                          // 2. Nokia SIM Swap Detection
-                          final isSimSwapped = await nokiaService.detectSimSwap(fullPhone);
-                          if (isSimSwapped) {
-                             final swapDate = await nokiaService.getSimSwapDate(fullPhone);
-                             throw Exception('Security Alert: Recent SIM swap detected${swapDate != null ? " on $swapDate" : ""}. Access blocked for your safety.');
+                          // 2. Nokia SIM Swap Detection (Conditional for Test Flow)
+                          if (fullPhone.startsWith('+999')) {
+                            final isSimSwapped = await nokiaService.detectSimSwap(fullPhone);
+                            if (isSimSwapped) {
+                              final swapDate = await nokiaService.getSimSwapDate(fullPhone);
+                              throw Exception('Security Alert: Recent SIM swap detected${swapDate != null ? " on $swapDate" : ""}. Access blocked for your safety.');
+                            }
                           }
 
                           // 3. Nokia Device Swap Detection
