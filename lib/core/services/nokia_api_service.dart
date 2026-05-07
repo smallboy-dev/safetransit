@@ -11,7 +11,7 @@ class NokiaApiService {
   Future<bool> detectSimSwap(String phoneNumber) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/sim-swap/detect'),
+        Uri.parse('$_baseUrl/sim-swap/sim-swap/v0/check'),
         headers: {
           'Content-Type': 'application/json',
           'x-rapidapi-key': _apiKey,
@@ -24,11 +24,36 @@ class NokiaApiService {
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['simSwapped'] ?? false;
+        return data['swapped'] ?? false;
       }
       return false;
     } catch (e) {
       throw Exception('SIM Swap detection failed: $e');
+    }
+  }
+
+  // SIM Swap Retrieve Date
+  Future<String?> getSimSwapDate(String phoneNumber) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/sim-swap/sim-swap/v0/retrieve-date'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-rapidapi-key': _apiKey,
+          'x-rapidapi-host': _apiHost,
+        },
+        body: json.encode({
+          'phoneNumber': phoneNumber,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['latestSimSwapDate'];
+      }
+      return null;
+    } catch (e) {
+      throw Exception('SIM Swap date retrieval failed: $e');
     }
   }
   
