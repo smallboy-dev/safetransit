@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:safetransit_ai/core/config/secrets.dart';
 
 class NokiaApiService {
-  static const String _baseUrl = 'https://api.nokia.com/network-as-code';
-  static const String _apiKey = 'YOUR_NOKIA_API_KEY';
+  static const String _baseUrl = 'https://network-as-code.p-eu.rapidapi.com/passthrough/camara/v1';
+  static const String _apiKey = AppSecrets.nokiaApiKey;
+  static const String _apiHost = 'network-as-code.nokia.rapidapi.com';
   
   // SIM Swap Detection
   Future<bool> detectSimSwap(String phoneNumber) async {
@@ -12,7 +14,8 @@ class NokiaApiService {
         Uri.parse('$_baseUrl/sim-swap/detect'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
+          'x-rapidapi-key': _apiKey,
+          'x-rapidapi-host': _apiHost,
         },
         body: json.encode({
           'phoneNumber': phoneNumber,
@@ -36,7 +39,8 @@ class NokiaApiService {
         Uri.parse('$_baseUrl/device-swap/detect'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
+          'x-rapidapi-key': _apiKey,
+          'x-rapidapi-host': _apiHost,
         },
         body: json.encode({
           'phoneNumber': phoneNumber,
@@ -58,10 +62,11 @@ class NokiaApiService {
   Future<bool> verifyNumber(String phoneNumber) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/number-verification/verify'),
+        Uri.parse('$_baseUrl/number-verification/number-verification/v0/verify'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
+          'x-rapidapi-key': _apiKey,
+          'x-rapidapi-host': _apiHost,
         },
         body: json.encode({
           'phoneNumber': phoneNumber,
@@ -85,7 +90,8 @@ class NokiaApiService {
         Uri.parse('$_baseUrl/location/retrieve'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
+          'x-rapidapi-key': _apiKey,
+          'x-rapidapi-host': _apiHost,
         },
         body: json.encode({
           'phoneNumber': phoneNumber,
@@ -108,7 +114,8 @@ class NokiaApiService {
         Uri.parse('$_baseUrl/geofencing/create'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
+          'x-rapidapi-key': _apiKey,
+          'x-rapidapi-host': _apiHost,
         },
         body: json.encode({
           'fenceId': fenceId,
@@ -127,7 +134,8 @@ class NokiaApiService {
         Uri.parse('$_baseUrl/device-status/reachability'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
+          'x-rapidapi-key': _apiKey,
+          'x-rapidapi-host': _apiHost,
         },
         body: json.encode({
           'phoneNumber': phoneNumber,
@@ -143,6 +151,34 @@ class NokiaApiService {
       throw Exception('Device reachability check failed: $e');
     }
   }
+
+  // Location Verification
+  Future<bool> verifyLocation(String phoneNumber, double latitude, double longitude, double radius) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/location-verification/verify'),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-rapidapi-key': _apiKey,
+          'x-rapidapi-host': _apiHost,
+        },
+        body: json.encode({
+          'phoneNumber': phoneNumber,
+          'latitude': latitude,
+          'longitude': longitude,
+          'radius': radius,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['verified'] ?? false;
+      }
+      return false;
+    } catch (e) {
+      throw Exception('Location verification failed: $e');
+    }
+  }
   
   // Congestion Insights
   Future<Map<String, dynamic>> getCongestionInsights(String area) async {
@@ -150,7 +186,8 @@ class NokiaApiService {
       final response = await http.get(
         Uri.parse('$_baseUrl/congestion/insights?area=$area'),
         headers: {
-          'Authorization': 'Bearer $_apiKey',
+          'x-rapidapi-key': _apiKey,
+          'x-rapidapi-host': _apiHost,
         },
       );
       
