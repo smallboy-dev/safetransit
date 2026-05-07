@@ -347,16 +347,8 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
                           // 2. Nokia SIM Swap Detection
                           final isSimSwapped = await nokiaService.detectSimSwap(fullPhone);
                           if (isSimSwapped) {
-                             // Proceed but show a warning as requested
                              final swapDate = await nokiaService.getSimSwapDate(fullPhone);
-                             if (!mounted) return;
-                             ScaffoldMessenger.of(context).showSnackBar(
-                               SnackBar(
-                                 content: Text('Warning: Recent SIM swap detected${swapDate != null ? " on $swapDate" : ""}. Please verify your identity.'),
-                                 backgroundColor: Colors.orange,
-                                 duration: const Duration(seconds: 5),
-                               ),
-                             );
+                             throw Exception('Security Alert: Recent SIM swap detected${swapDate != null ? " on $swapDate" : ""}. Access blocked for your safety.');
                           }
 
                           // 3. Nokia Device Swap Detection
