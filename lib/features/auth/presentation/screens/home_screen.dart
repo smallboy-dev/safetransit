@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import 'package:safetransit_ai/core/theme/app_theme.dart';
+import 'package:safetransit_ai/core/services/nokia_api_service.dart';
 import 'live_tracking_screen.dart';
 import 'driver_profile_screen.dart';
 
@@ -15,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isOnline = false;
+  bool _isVerifyingReachability = false;
 
   @override
   Widget build(BuildContext context) {
@@ -156,11 +159,40 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // Main Toggle Action
                 GestureDetector(
-                  onTap: () {
-                    setState(() => _isOnline = !_isOnline);
+                  onTap: _isVerifyingReachability ? null : () async {
                     if (_isOnline) {
+                      setState(() => _isOnline = false);
+                      return;
+                    }
+
+                    setState(() => _isVerifyingReachability = true);
+
+                    try {
+                      final nokiaService = context.read<NokiaApiService>();
+                      // Check Device Reachability via Nokia NaC
+                      final isReachable = await nokiaService.isDeviceReachable('+2349000000000'); // Mock phone
+                      
+                      if (!isReachable) {
+                        throw Exception('Device is currently unreachable on the network. Please check your data connection.');
+                      }
+
+                      if (!mounted) return;
+                      setState(() {
+                        _isOnline = true;
+                        _isVerifyingReachability = false;
+                      });
+                      
                       Navigator.of(context).push(
                         MaterialPageRoute(builder: (context) => const LiveTrackingScreen()),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      setState(() => _isVerifyingReachability = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(e.toString().replaceAll('Exception: ', '')),
+                          backgroundColor: const Color(0xFFEF4444),
+                        ),
                       );
                     }
                   },
@@ -208,13 +240,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              LucideIcons.power,
+                              _isVerifyingReachability ? LucideIcons.loader : LucideIcons.power,
                               size: 40,
                               color: _isOnline ? const Color(0xFFEF4444) : AppTheme.primaryColor,
-                            ),
+                            ).animate(target: _isVerifyingReachability ? 1 : 0)
+                             .rotate(duration: 2.seconds),
                             const SizedBox(height: 8),
                             Text(
-                              _isOnline ? 'GO OFFLINE' : 'GO ONLINE',
+                              _isVerifyingReachability ? 'VERIFYING...' : (_isOnline ? 'GO OFFLINE' : 'GO ONLINE'),
                               style: GoogleFonts.spaceGrotesk(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
