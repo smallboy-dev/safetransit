@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:safetransit_ai/core/theme/app_theme.dart';
 import 'package:safetransit_ai/core/services/nokia_api_service.dart';
+import 'package:safetransit_ai/core/services/firebase_service.dart';
 import 'live_tracking_screen.dart';
 import 'driver_profile_screen.dart';
 
@@ -18,6 +19,37 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isOnline = false;
   bool _isVerifyingReachability = false;
+  String _driverName = 'Loading...';
+  String _vehicleType = '...';
+  String _vehicleId = '...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDriverProfile();
+  }
+
+  Future<void> _loadDriverProfile() async {
+    try {
+      final firebaseService = context.read<FirebaseService>();
+      final user = firebaseService.currentUser;
+      if (user != null) {
+        final doc = await firebaseService.getUserData(user.uid);
+        if (doc.exists) {
+          final data = doc.data() as Map<String, dynamic>;
+          if (mounted) {
+            setState(() {
+              _driverName = data['name'] ?? 'Driver';
+              _vehicleType = data['vehicleType'] ?? 'Vehicle';
+              _vehicleId = data['vehicleId'] ?? 'ID';
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print('Error loading profile: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Welcome, John',
+                                'Welcome, $_driverName',
                                 style: GoogleFonts.spaceGrotesk(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w500,
@@ -126,10 +158,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.1),
 
                 // Vehicle Info
-                const _VehicleCard(
-                  type: 'Bus',
-                  plate: 'XYZ-9876',
-                  model: 'Transit Master 2000',
+                _VehicleCard(
+                  type: _vehicleType,
+                  plate: _vehicleId,
+                  model: 'SafeTransit Verified',
                 ).animate().fadeIn(delay: 200.ms),
 
                 const SizedBox(height: 24),

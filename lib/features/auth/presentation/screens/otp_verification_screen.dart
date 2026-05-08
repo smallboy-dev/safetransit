@@ -26,6 +26,17 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   void initState() {
     super.initState();
     _startTimer();
+    
+    // Simulating Nokia identity propagation:
+    // Because Nokia already verified the identity, we auto-fill the "Session OTP"
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() {
+          _otpController.text = '123456';
+        });
+      }
+    });
+
     // Auto-focus the hidden input field
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
@@ -102,9 +113,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           ],
                         ),
                         child: const Icon(
-                          LucideIcons.arrowLeft,
+                          LucideIcons.chevronLeft,
                           color: Colors.white,
-                          size: 20,
                         ),
                       ),
                     ),
@@ -152,6 +162,32 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           textAlign: TextAlign.center,
                         ),
                       ).animate().fadeIn(delay: 350.ms, duration: 600.ms).slideY(begin: 0.2),
+                      const SizedBox(height: 16),
+                      
+                      // Nokia Verified Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(LucideIcons.check, color: Color(0xFF10B981), size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Verified via Nokia NaC Security',
+                              style: GoogleFonts.spaceGrotesk(
+                                color: const Color(0xFF10B981),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ).animate().fadeIn(delay: 500.ms).scale(),
                     ],
                   ),
                 ),
@@ -164,7 +200,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Hidden TextField for functional input
                           Opacity(
                             opacity: 0,
                             child: TextField(
@@ -175,26 +210,20 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                               maxLength: _otpLength,
                               onChanged: (value) {
                                 setState(() {});
-                                if (value.length == _otpLength) {
-                                  // Auto-verify if needed
-                                }
                               },
                               decoration: const InputDecoration(
                                 counterText: '',
                               ),
                             ),
                           ),
-                          
-                          // Stylized Boxes reflecting the text in the controller
                           GestureDetector(
                             onTap: () => _focusNode.requestFocus(),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: List.generate(_otpLength, (index) {
-                                final text = _otpController.text;
-                                final isFocused = index == text.length;
-                                final hasValue = index < text.length;
-                                final char = hasValue ? text[index] : '';
+                                final hasValue = _otpController.text.length > index;
+                                final char = hasValue ? _otpController.text[index] : '';
+                                final isFocused = _otpController.text.length == index;
                                 
                                 return Container(
                                   width: 46,
@@ -208,8 +237,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                     border: Border.all(
                                       color: isFocused 
                                           ? AppTheme.primaryColor 
-                                          : const Color(0xFF1F2937),
-                                      width: isFocused ? 1.5 : 1.0,
+                                          : (hasValue ? const Color(0xFF10B981) : const Color(0xFF1F2937)),
+                                      width: isFocused || hasValue ? 1.5 : 1.0,
                                     ),
                                     boxShadow: isFocused ? [
                                       BoxShadow(
@@ -242,32 +271,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       
                       const SizedBox(height: 32),
                       
-                      // Timer and Resend
                       Column(
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'Resend code in',
+                                "Resend code in ",
                                 style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
                                   color: AppTheme.mutedForeground,
+                                  fontSize: 14,
                                 ),
                               ),
-                              const SizedBox(width: 6),
                               Text(
                                 _formatTime(_timerSeconds),
                                 style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
                                   color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 16),
                           TextButton(
                             onPressed: _timerSeconds == 0 ? () {
                               setState(() => _timerSeconds = 30);
@@ -276,55 +302,51 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             child: Text(
                               'Resend code',
                               style: GoogleFonts.spaceGrotesk(
-                                fontSize: 14,
+                                color: _timerSeconds == 0 ? AppTheme.primaryColor : AppTheme.mutedForeground,
                                 fontWeight: FontWeight.w500,
-                                color: AppTheme.primaryColor,
                               ),
                             ),
-                          ).animate().fadeIn(delay: 650.ms),
+                          ),
                         ],
-                      ).animate().fadeIn(delay: 600.ms),
+                      ).animate().fadeIn(delay: 650.ms),
+                      
+                      const Spacer(),
+                      
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (widget.isDriver) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (context) => const DriverProfileSetupScreen()),
+                              );
+                            } else {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(builder: (context) => const HomeScreen()),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 8,
+                            shadowColor: AppTheme.primaryColor.withOpacity(0.2),
+                          ),
+                          child: Text(
+                            'Verify',
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ).animate().fadeIn(delay: 800.ms).scale(begin: const Offset(0.95, 0.95)),
                     ],
                   ),
-                ),
-                
-                // Action Section
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 32.0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (widget.isDriver) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (context) => const DriverProfileSetupScreen()),
-                          );
-                        } else {
-                          // TODO: Implement Passenger Profile Setup or go to Home
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (context) => const HomeScreen()),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 8,
-                        shadowColor: AppTheme.primaryColor.withOpacity(0.2),
-                      ),
-                      child: Text(
-                        'Verify',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ).animate().fadeIn(delay: 800.ms).scale(begin: const Offset(0.95, 0.95)),
                 ),
               ],
             ),

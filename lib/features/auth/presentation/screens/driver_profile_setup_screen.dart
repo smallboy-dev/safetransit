@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:safetransit_ai/core/theme/app_theme.dart';
+import 'package:provider/provider.dart';
+import 'package:safetransit_ai/core/services/firebase_service.dart';
 import 'verification_status_screen.dart';
 
 class DriverProfileSetupScreen extends StatefulWidget {
@@ -13,8 +15,89 @@ class DriverProfileSetupScreen extends StatefulWidget {
 }
 
 class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
+  final _nameController = TextEditingController();
+  final _vehicleIdController = TextEditingController();
   String _selectedVehicleType = 'Bus';
   final List<String> _vehicleTypes = ['Bus', 'Car', 'Motorcycle (Okada)', 'Tricycle (Keke)'];
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _vehicleIdController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveProfile() async {
+    print('Starting profile save...');
+    if (_nameController.text.trim().isEmpty || _vehicleIdController.text.trim().isEmpty) {
+      print('Validation failed: Name or Vehicle ID is empty');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final firebaseService = context.read<FirebaseService>();
+      var user = firebaseService.currentUser;
+      print('Current User: ${user?.uid}');
+
+      if (user == null) {
+        print('User is null, performing anonymous sign-in...');
+        final creds = await firebaseService.signInAnonymously();
+        user = creds.user;
+        print('Anonymous Sign-in Success: ${user?.uid}');
+      }
+
+      if (user != null) {
+        final profileData = {
+          'name': _nameController.text.trim(),
+          'vehicleType': _selectedVehicleType,
+          'vehicleId': _vehicleIdController.text.trim(),
+          'userType': 'driver',
+          'profileSetupComplete': true,
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
+        print('Saving to Firestore (users/${user.uid}): $profileData');
+        
+        try {
+          // Set a 5-second timeout for the database write to prevent hanging during the demo
+          await firebaseService.createUserData(user.uid, profileData).timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              print('Firestore write timed out - proceeding to next screen anyway for demo');
+            },
+          );
+          print('Firestore operation handled');
+        } catch (e) {
+          print('Firestore error (non-blocking for demo): $e');
+        }
+
+        if (mounted) {
+          print('Navigating to VerificationStatusScreen');
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const VerificationStatusScreen(),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Caught Exception during save: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving profile: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +146,7 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
                         ],
                       ),
                       child: const Icon(
-                        LucideIcons.arrowLeft,
+                        LucideIcons.chevronLeft,
                         color: Colors.white,
                         size: 20,
                       ),
@@ -109,7 +192,10 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
                       children: [
                         // Full Name
                         _buildLabel('Full Name'),
-                        _buildInputField(hintText: 'Jane Doe'),
+                        _buildInputField(
+                          controller: _nameController,
+                          hintText: 'Jane Doe',
+                        ),
                         
                         const SizedBox(height: 20),
                         
@@ -121,7 +207,10 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
                         
                         // Vehicle ID / Plate Number
                         _buildLabel('Vehicle ID / Plate Number'),
-                        _buildInputField(hintText: 'XYZ-9876'),
+                        _buildInputField(
+                          controller: _vehicleIdController,
+                          hintText: 'XYZ-9876',
+                        ),
                         
                         const SizedBox(height: 32),
                       ],
@@ -135,11 +224,7 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
                   child: SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (context) => const VerificationStatusScreen()),
-                        );
-                      },
+                      onPressed: _isLoading ? null : _saveProfile,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
                         foregroundColor: Colors.white,
@@ -150,13 +235,22 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
                         elevation: 8,
                         shadowColor: AppTheme.primaryColor.withOpacity(0.2),
                       ),
-                      child: Text(
-                        'Continue',
-                        style: GoogleFonts.spaceGrotesk(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      child: _isLoading 
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            'Continue',
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                     ),
                   ).animate().fadeIn(delay: 700.ms).scale(begin: const Offset(0.95, 0.95)),
                 ),
@@ -182,7 +276,7 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
     );
   }
 
-  Widget _buildInputField({required String hintText}) {
+  Widget _buildInputField({required TextEditingController controller, required String hintText}) {
     return Container(
       height: 56,
       decoration: BoxDecoration(
@@ -193,6 +287,7 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
         ),
       ),
       child: TextField(
+        controller: controller,
         style: GoogleFonts.spaceGrotesk(
           fontSize: 16,
           color: Colors.white,

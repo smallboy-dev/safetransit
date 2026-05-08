@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
 import 'package:safetransit_ai/core/theme/app_theme.dart';
 import 'package:safetransit_ai/core/services/nokia_api_service.dart';
 import 'otp_verification_screen.dart';
@@ -72,7 +74,7 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                 itemBuilder: (context, index) {
                   final country = countries[index];
                   final isSelected = selectedCode == country['code'];
-                  
+
                   return GestureDetector(
                     onTap: () {
                       setState(() {
@@ -85,19 +87,20 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isSelected 
-                            ? AppTheme.primaryColor.withOpacity(0.1) 
+                        color: isSelected
+                            ? AppTheme.primaryColor.withOpacity(0.1)
                             : const Color(0xFF111827).withOpacity(0.4),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isSelected 
-                              ? AppTheme.primaryColor 
+                          color: isSelected
+                              ? AppTheme.primaryColor
                               : const Color(0xFF1F2937),
                         ),
                       ),
                       child: Row(
                         children: [
-                          Text(country['flag']!, style: const TextStyle(fontSize: 24)),
+                          Text(country['flag']!,
+                              style: const TextStyle(fontSize: 24)),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Text(
@@ -105,7 +108,9 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                               style: GoogleFonts.spaceGrotesk(
                                 fontSize: 16,
                                 color: Colors.white,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                               ),
                             ),
                           ),
@@ -113,7 +118,9 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                             country['code']!,
                             style: GoogleFonts.spaceGrotesk(
                               fontSize: 16,
-                              color: isSelected ? AppTheme.primaryColor : AppTheme.mutedForeground,
+                              color: isSelected
+                                  ? AppTheme.primaryColor
+                                  : AppTheme.mutedForeground,
                             ),
                           ),
                         ],
@@ -198,7 +205,10 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                           color: Colors.white,
                           letterSpacing: -0.8,
                         ),
-                      ).animate().fadeIn(delay: 200.ms, duration: 600.ms).slideX(begin: -0.1),
+                      )
+                          .animate()
+                          .fadeIn(delay: 200.ms, duration: 600.ms)
+                          .slideX(begin: -0.1),
                       const SizedBox(height: 12),
                       ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 280),
@@ -209,11 +219,14 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                             color: AppTheme.mutedForeground,
                           ),
                         ),
-                      ).animate().fadeIn(delay: 350.ms, duration: 600.ms).slideX(begin: -0.1),
+                      )
+                          .animate()
+                          .fadeIn(delay: 350.ms, duration: 600.ms)
+                          .slideX(begin: -0.1),
                     ],
                   ),
                 ),
-                
+
                 // Form Section
                 Expanded(
                   child: Column(
@@ -230,7 +243,6 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                           ),
                         ),
                       ),
-                      
                       Container(
                         height: 64,
                         decoration: BoxDecoration(
@@ -254,7 +266,8 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                               onTap: _showCountryPicker,
                               behavior: HitTestBehavior.opaque,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
                                 decoration: const BoxDecoration(
                                   border: Border(
                                     right: BorderSide(
@@ -287,11 +300,12 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                                 ),
                               ),
                             ),
-                            
+
                             // Input Area
                             Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0),
                                 child: TextField(
                                   controller: _phoneController,
                                   style: GoogleFonts.spaceGrotesk(
@@ -317,53 +331,136 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                     ],
                   ),
                 ),
-                
+
                 // Action Section
                 Padding(
                   padding: const EdgeInsets.only(bottom: 32.0, top: 16.0),
                   child: SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : () async {
-                        setState(() => _isLoading = true);
-                        final phone = _phoneController.text.trim();
-                        final fullPhone = '$selectedCode$phone';
+                      onPressed: _isLoading
+                          ? null
+                          : () async {
+                              final phone = _phoneController.text.trim();
+                              if (phone.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content:
+                                          Text('Please enter a phone number')),
+                                );
+                                return;
+                              }
 
-                        try {
-                          final nokiaService = context.read<NokiaApiService>();
+                              setState(() => _isLoading = true);
+                              try {
+                                final nokiaService =
+                                    context.read<NokiaApiService>();
+                                final fullPhone = '$selectedCode$phone';
 
-                          // 1. Nokia Number Verification
-                          final isVerified = await nokiaService.verifyNumber(fullPhone);
-                          if (!isVerified && phone != '99999991000' && phone != '99999991001') {
-                             throw Exception('Number verification failed. Please check your credentials.');
-                          }
+                                // 1. SIM Swap Guard (Server-to-Server)
+                                final isSimSwapped =
+                                    await nokiaService.detectSimSwap(fullPhone);
+                                if (isSimSwapped) {
+                                  final swapDate = await nokiaService
+                                      .getSimSwapDate(fullPhone);
+                                  throw Exception(
+                                      'Registration failed: SIM swap detected${swapDate != null ? " on $swapDate" : ""}.');
+                                }
 
-                          // 2. Nokia SIM Swap Detection (Conditional for Test Flow)
-                          if (fullPhone.startsWith('+999')) {
-                            final isSimSwapped = await nokiaService.detectSimSwap(fullPhone);
-                            if (isSimSwapped) {
-                              final swapDate = await nokiaService.getSimSwapDate(fullPhone);
-                              throw Exception('Security Alert: Recent SIM swap detected${swapDate != null ? " on $swapDate" : ""}. Access blocked for your safety.');
-                            }
-                          }
+                                // 2. Fast Authorization Flow (3-legged)
+                                final state = const Uuid().v4();
+                                final nonce = const Uuid().v4();
 
-                          if (!mounted) return;
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (context) => const OtpVerificationScreen(isDriver: false)),
-                          );
-                        } catch (e) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(e.toString().replaceAll('Exception: ', '')),
-                              backgroundColor: const Color(0xFFEF4444),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        } finally {
-                          if (mounted) setState(() => _isLoading = false);
-                        }
-                      },
+                                final authUrl = await nokiaService.getAuthUrl(
+                                    fullPhone, state, nonce);
+
+                                if (!await launchUrl(Uri.parse(authUrl),
+                                    mode: LaunchMode.externalApplication)) {
+                                  throw Exception(
+                                      'Could not launch authorization portal.');
+                                }
+
+                                if (!mounted) return;
+                                final String? code = await showDialog<String>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (context) {
+                                      final controller =
+                                          TextEditingController();
+                                      return AlertDialog(
+                                        backgroundColor:
+                                            const Color(0xFF111827),
+                                        title: Text('Verification Required',
+                                            style: GoogleFonts.spaceGrotesk(
+                                                color: Colors.white)),
+                                        content: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                                'Please complete the consent in your browser, then enter the verification code received:',
+                                                style: GoogleFonts.spaceGrotesk(
+                                                    color: AppTheme
+                                                        .mutedForeground)),
+                                            const SizedBox(height: 16),
+                                            TextField(
+                                              controller: controller,
+                                              style: const TextStyle(
+                                                  color: Colors.white),
+                                              decoration: const InputDecoration(
+                                                hintText: 'Enter Code',
+                                                hintStyle: TextStyle(
+                                                    color: Colors.grey),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(
+                                                context,
+                                                controller.text.trim()),
+                                            child: const Text('Verify'),
+                                          ),
+                                        ],
+                                      );
+                                    });
+
+                                if (code == null || code.isEmpty) {
+                                  throw Exception(
+                                      'Verification canceled or invalid code.');
+                                }
+
+                                // 3. Final Number Verification
+                                final isVerified = await nokiaService
+                                    .verifyNumberWithCode(
+                                        fullPhone, code, state);
+                                if (!isVerified) {
+                                  throw Exception(
+                                      'Number verification failed. Access blocked.');
+                                }
+
+                                if (!mounted) return;
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          const OtpVerificationScreen(
+                                              isDriver: false)),
+                                );
+                              } catch (e) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(e
+                                        .toString()
+                                        .replaceAll('Exception: ', '')),
+                                    backgroundColor: const Color(0xFFEF4444),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              } finally {
+                                if (mounted) setState(() => _isLoading = false);
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
                         foregroundColor: Colors.white,
@@ -374,21 +471,25 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                         elevation: 8,
                         shadowColor: AppTheme.primaryColor.withOpacity(0.2),
                       ),
-                      child: _isLoading 
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : Text(
-                            'Continue',
-                            style: GoogleFonts.spaceGrotesk(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2),
+                            )
+                          : Text(
+                              'Continue',
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
                     ),
-                  ).animate().fadeIn(delay: 700.ms).scale(begin: const Offset(0.95, 0.95)),
+                  )
+                      .animate()
+                      .fadeIn(delay: 700.ms)
+                      .scale(begin: const Offset(0.95, 0.95)),
                 ),
               ],
             ),

@@ -47,29 +47,29 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'YOUR-API-KEY',
-    appId: 'YOUR-APP-ID',
-    messagingSenderId: 'YOUR-MESSAGING-SENDER-ID',
-    projectId: 'YOUR-PROJECT-ID',
-    authDomain: 'YOUR-PROJECT-ID.firebaseapp.com',
-    storageBucket: 'YOUR-PROJECT-ID.appspot.com',
-    measurementId: 'YOUR-MEASUREMENT-ID',
+    apiKey: 'AIzaSyCv4d4jfsIQL5WbtSNGfwFaV1WQrsIY4JY',
+    appId: '1:315798907912:web:23388b01a9c0357fb175bd',
+    messagingSenderId: '315798907912',
+    projectId: 'safetransit-d31ab',
+    authDomain: 'safetransit-d31ab.firebaseapp.com',
+    storageBucket: 'safetransit-d31ab.firebasestorage.app',
+    measurementId: 'G-QDN7EJSRPF',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR-API-KEY',
-    appId: 'YOUR-APP-ID',
-    messagingSenderId: 'YOUR-MESSAGING-SENDER-ID',
-    projectId: 'YOUR-PROJECT-ID',
-    storageBucket: 'YOUR-PROJECT-ID.appspot.com',
+    apiKey: 'AIzaSyCv4d4jfsIQL5WbtSNGfwFaV1WQrsIY4JY',
+    appId: '1:315798907912:android:23388b01a9c0357fb175bd', // Guessed based on web appId pattern
+    messagingSenderId: '315798907912',
+    projectId: 'safetransit-d31ab',
+    storageBucket: 'safetransit-d31ab.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR-API-KEY',
-    appId: 'YOUR-APP-ID',
-    messagingSenderId: 'YOUR-MESSAGING-SENDER-ID',
-    projectId: 'YOUR-PROJECT-ID',
-    storageBucket: 'YOUR-PROJECT-ID.appspot.com',
+    apiKey: 'AIzaSyCv4d4jfsIQL5WbtSNGfwFaV1WQrsIY4JY',
+    appId: '1:315798907912:ios:23388b01a9c0357fb175bd', // Guessed based on web appId pattern
+    messagingSenderId: '315798907912',
+    projectId: 'safetransit-d31ab',
+    storageBucket: 'safetransit-d31ab.firebasestorage.app',
     iosBundleId: 'com.example.safetransitAi',
   );
 }

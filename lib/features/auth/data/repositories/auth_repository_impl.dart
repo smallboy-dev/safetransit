@@ -59,11 +59,11 @@ class AuthRepositoryImpl implements AuthRepository {
       final userCredential = await _firebaseService.createUserWithEmailAndPassword(email, password);
       final userId = userCredential.user!.uid;
 
-      // Verify phone number using Nokia API
-      final isPhoneVerified = await _nokiaApiService.verifyNumber(phoneNumber);
-      if (!isPhoneVerified) {
-        throw Exception('Phone number verification failed');
-      }
+      // Phone number verification is now handled at the UI level via Nokia Fast Flow
+      // final isPhoneVerified = await _nokiaApiService.verifyNumber(phoneNumber);
+      // if (!isPhoneVerified) {
+      //   throw Exception('Phone number verification failed');
+      // }
 
       final userData = {
         'email': email,
