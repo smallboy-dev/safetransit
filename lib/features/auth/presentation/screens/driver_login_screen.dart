@@ -423,7 +423,10 @@ class _DriverLoginScreenState extends State<DriverLoginScreen> {
 
                                 if (!mounted) return;
                                 Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (context) => const OtpVerificationScreen(isDriver: true)),
+                                  MaterialPageRoute(builder: (context) => OtpVerificationScreen(
+                                    isDriver: true,
+                                    phoneNumber: fullPhone,
+                                  )),
                                 );
                               } catch (e) {
                                 if (!mounted) return;

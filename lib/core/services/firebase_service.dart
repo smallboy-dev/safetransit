@@ -36,8 +36,8 @@ class FirebaseService {
   }
 
   // Firestore Operations
-  Future<void> setDocument(String collection, String docId, Map<String, dynamic> data) async {
-    await _firestore.collection(collection).doc(docId).set(data);
+  Future<void> setDocument(String collection, String docId, Map<String, dynamic> data, {bool merge = false}) async {
+    await _firestore.collection(collection).doc(docId).set(data, SetOptions(merge: merge));
   }
 
   Future<DocumentSnapshot> getDocument(String collection, String docId) async {
@@ -136,6 +136,11 @@ class FirebaseService {
 
   Stream<DocumentSnapshot> getLocationStream(String userId) {
     return documentStream('users', userId);
+  }
+
+  // Driver Reachability Status
+  Stream<DocumentSnapshot> getDriverStatusStream(String driverId) {
+    return documentStream('drivers', driverId);
   }
 }
 

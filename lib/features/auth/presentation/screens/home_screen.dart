@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:safetransit_ai/core/theme/app_theme.dart';
 import 'package:safetransit_ai/core/services/nokia_api_service.dart';
 import 'package:safetransit_ai/core/services/firebase_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'live_tracking_screen.dart';
 import 'driver_profile_screen.dart';
 
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _driverName = 'Loading...';
   String _vehicleType = '...';
   String _vehicleId = '...';
+  bool _isSimSwapped = false;
 
   @override
   void initState() {
@@ -32,9 +34,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadDriverProfile() async {
     try {
       final firebaseService = context.read<FirebaseService>();
+      final prefs = await SharedPreferences.getInstance();
+      final phone = prefs.getString('userPhone');
+      final phoneKey = phone?.replaceAll('+', '');
       final user = firebaseService.currentUser;
-      if (user != null) {
-        final doc = await firebaseService.getUserData(user.uid);
+      
+      final idToFetch = phoneKey ?? user?.uid;
+      
+      if (idToFetch != null) {
+        final doc = await firebaseService.getUserData(idToFetch);
         if (doc.exists) {
           final data = doc.data() as Map<String, dynamic>;
           if (mounted) {
@@ -42,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _driverName = data['name'] ?? 'Driver';
               _vehicleType = data['vehicleType'] ?? 'Vehicle';
               _vehicleId = data['vehicleId'] ?? 'ID';
+              _isSimSwapped = data['isSimSwapped'] ?? false;
             });
           }
         }
@@ -82,23 +91,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Row(
                         children: [
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (context) => const DriverProfileScreen()),
-                          );
-                        },
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppTheme.primaryColor.withOpacity(0.2),
-                            border: Border.all(color: const Color(0xFF1F2937)),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (context) =>
+                                        const DriverProfileScreen()),
+                              );
+                            },
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppTheme.primaryColor.withOpacity(0.2),
+                                border:
+                                    Border.all(color: const Color(0xFF1F2937)),
+                              ),
+                              child: const Icon(LucideIcons.user,
+                                  color: Colors.white, size: 24),
+                            ),
                           ),
-                          child: const Icon(LucideIcons.user, color: Colors.white, size: 24),
-                        ),
-                      ),
                           const SizedBox(width: 12),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,7 +143,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF111827).withOpacity(0.4),
                               shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFF1F2937)),
+                              border:
+                                  Border.all(color: const Color(0xFF1F2937)),
                             ),
                             child: const Icon(
                               LucideIcons.bell,
@@ -147,7 +161,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               decoration: BoxDecoration(
                                 color: AppTheme.primaryColor,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.black, width: 2),
+                                border:
+                                    Border.all(color: Colors.black, width: 2),
                               ),
                             ),
                           ),
@@ -191,59 +206,143 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // Main Toggle Action
                 GestureDetector(
-                  onTap: _isVerifyingReachability ? null : () async {
-                    if (_isOnline) {
-                      setState(() => _isOnline = false);
-                      return;
-                    }
+                  onTap: _isVerifyingReachability
+                      ? null
+                      : () async {
+                          if (_isOnline) {
+                            setState(() => _isOnline = false);
+                            return;
+                          }
 
-                    setState(() => _isVerifyingReachability = true);
+                          setState(() => _isVerifyingReachability = true);
 
-                    try {
-                      final nokiaService = context.read<NokiaApiService>();
-                      // Check Device Reachability via Nokia NaC
-                      final isReachable = await nokiaService.isDeviceReachable('+2349000000000'); // Mock phone
-                      
-                      if (!isReachable) {
-                        throw Exception('Device is currently unreachable on the network. Please check your data connection.');
-                      }
+                          try {
+                            final nokiaService = context.read<NokiaApiService>();
+                            final firebaseService = context.read<FirebaseService>();
+                            final user = firebaseService.currentUser;
 
-                      if (!mounted) return;
-                      setState(() {
-                        _isOnline = true;
-                        _isVerifyingReachability = false;
-                      });
-                      
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const LiveTrackingScreen()),
-                      );
-                    } catch (e) {
-                      if (!mounted) return;
-                      setState(() => _isVerifyingReachability = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(e.toString().replaceAll('Exception: ', '')),
-                          backgroundColor: const Color(0xFFEF4444),
-                        ),
-                      );
-                    }
-                  },
+                            if (user == null) {
+                              throw Exception('User not authenticated');
+                            }
+
+                            const demoPhone = '+99999991000';
+
+                            // 1. Subscribe to Reachability
+                            print('Step 1: Subscribing to Reachability for $demoPhone...');
+                            await nokiaService.subscribeToReachability(demoPhone, user.uid).timeout(
+                              const Duration(seconds: 10),
+                              onTimeout: () => throw Exception('Reachability subscription timed out'),
+                            );
+
+                            // 2. Retrieve Location
+                            print('Step 2: Retrieving live location from NaC network...');
+                            final locationData = await nokiaService.getLocation(demoPhone).timeout(
+                              const Duration(seconds: 10),
+                              onTimeout: () => throw Exception('Location retrieval timed out'),
+                            );
+                            
+                            final lat = locationData['latitude'] ?? locationData['lat'] ?? 0.0;
+                            final lng = locationData['longitude'] ?? locationData['long'] ?? 0.0;
+                            print('Location received: $lat, $lng');
+
+                            // 3. SIM Swap Check (Security Guard)
+                            print('Step 3: Verifying SIM integrity...');
+                            final isSimSwapped = await nokiaService.detectSimSwap(demoPhone);
+                            String? swapDate;
+                            int riskScore = 0;
+                            double rating = 4.8; // Default rating
+                            
+                            if (isSimSwapped) {
+                              swapDate = await nokiaService.getSimSwapDate(demoPhone);
+                              riskScore = 98; // 98% risk for SIM swap
+                              rating = 2.1; // Drop rating significantly
+                              print('WARNING: SIM SWAP DETECTED at $swapDate. Risk: $riskScore%, Rating: $rating');
+                            }
+
+                            // 4. Update Firestore (Non-blocking for UI)
+                            print('Step 4: Syncing status to Firestore...');
+                            final updateData = {
+                              'isOnline': true,
+                              'reachable': true,
+                              'isSimSwapped': isSimSwapped,
+                              'simSwapDate': swapDate,
+                              'riskScore': riskScore,
+                              'rating': rating,
+                              'lastKnownLocation': {
+                                'latitude': lat,
+                                'longitude': lng,
+                              },
+                              'lastOnlineAt': DateTime.now().toIso8601String(),
+                              'updatedAt': DateTime.now().toIso8601String(),
+                            };
+
+                            // We use unawaited/catchError to prevent Firestore hangs from blocking the UI
+                            firebaseService.updateUserData(user.uid, updateData).catchError((e) {
+                              print('Non-fatal Firestore error (users): $e');
+                              return null;
+                            });
+                            
+                            firebaseService.setDocument('drivers', user.uid, {
+                              ...updateData,
+                              'driverId': user.uid,
+                            }).catchError((e) {
+                              print('Non-fatal Firestore error (drivers): $e');
+                              return null;
+                            });
+
+                            print('Activation complete. Transitioning to tracking...');
+                            if (!mounted) return;
+                            setState(() {
+                              _isVerifyingReachability = false;
+                              _isOnline = true;
+                            });
+
+                            await Future.delayed(const Duration(milliseconds: 500));
+
+                            if (!mounted) return;
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => const LiveTrackingScreen(),
+                              ),
+                            );
+                          } catch (e) {
+                            print('Go Online Error: $e');
+                            if (!mounted) return;
+                            setState(() => _isVerifyingReachability = false);
+                            
+                            String errorMsg = e.toString().replaceAll('Exception: ', '');
+                            if (errorMsg.contains('500')) {
+                              errorMsg = "Network Error: Please ensure Firestore API is enabled in Google Console.";
+                            }
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(errorMsg),
+                                backgroundColor: const Color(0xFFEF4444),
+                                behavior: SnackBarBehavior.floating,
+                                duration: const Duration(seconds: 5),
+                              ),
+                            );
+                          }
+                        },
                   child: Container(
                     width: 192,
                     height: 192,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: _isOnline 
-                          ? const Color(0xFFEF4444).withOpacity(0.1) 
+                      color: _isOnline
+                          ? const Color(0xFFEF4444).withOpacity(0.1)
                           : AppTheme.primaryColor.withOpacity(0.1),
                       border: Border.all(
-                        color: _isOnline ? const Color(0xFFEF4444) : AppTheme.primaryColor,
+                        color: _isOnline
+                            ? const Color(0xFFEF4444)
+                            : AppTheme.primaryColor,
                         width: 4,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: _isOnline 
-                              ? const Color(0xFFEF4444).withOpacity(0.3) 
+                          color: _isOnline
+                              ? const Color(0xFFEF4444).withOpacity(0.3)
                               : AppTheme.primaryColor.withOpacity(0.3),
                           blurRadius: 60,
                         ),
@@ -260,30 +359,45 @@ class _HomeScreenState extends State<HomeScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: _isOnline ? const Color(0xFFEF4444) : AppTheme.primaryColor,
+                                color: _isOnline
+                                    ? const Color(0xFFEF4444)
+                                    : AppTheme.primaryColor,
                                 width: 2,
-                                style: BorderStyle.none, // Custom dash needed but placeholder
+                                style: BorderStyle
+                                    .none, // Custom dash needed but placeholder
                               ),
                             ),
                           ),
-                        ).animate(onPlay: (c) => c.repeat()).rotate(duration: 10.seconds),
-                        
+                        )
+                            .animate(onPlay: (c) => c.repeat())
+                            .rotate(duration: 10.seconds),
+
                         Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              _isVerifyingReachability ? LucideIcons.loader : LucideIcons.power,
+                              _isVerifyingReachability
+                                  ? LucideIcons.loader
+                                  : LucideIcons.power,
                               size: 40,
-                              color: _isOnline ? const Color(0xFFEF4444) : AppTheme.primaryColor,
-                            ).animate(target: _isVerifyingReachability ? 1 : 0)
-                             .rotate(duration: 2.seconds),
+                              color: _isOnline
+                                  ? const Color(0xFFEF4444)
+                                  : AppTheme.primaryColor,
+                            )
+                                .animate(
+                                    target: _isVerifyingReachability ? 1 : 0)
+                                .rotate(duration: 2.seconds),
                             const SizedBox(height: 8),
                             Text(
-                              _isVerifyingReachability ? 'VERIFYING...' : (_isOnline ? 'GO OFFLINE' : 'GO ONLINE'),
+                              _isVerifyingReachability
+                                  ? 'VERIFYING...'
+                                  : (_isOnline ? 'GO OFFLINE' : 'GO ONLINE'),
                               style: GoogleFonts.spaceGrotesk(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
-                                color: _isOnline ? const Color(0xFFEF4444) : AppTheme.primaryColor,
+                                color: _isOnline
+                                    ? const Color(0xFFEF4444)
+                                    : AppTheme.primaryColor,
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -292,14 +406,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-                ).animate().fadeIn(delay: 600.ms).scale(duration: 800.ms, curve: Curves.easeOutBack),
+                )
+                    .animate()
+                    .fadeIn(delay: 600.ms)
+                    .scale(duration: 800.ms, curve: Curves.easeOutBack),
 
                 const Spacer(),
 
                 // Security Status Card
-                const _SecurityStatusCard(isSafe: true)
-                    .animate().fadeIn(delay: 800.ms).slideY(begin: 0.1),
-                
+                _SecurityStatusCard(isSafe: !_isSimSwapped)
+                    .animate()
+                    .fadeIn(delay: 800.ms)
+                    .slideY(begin: 0.1),
+
                 const SizedBox(height: 32),
               ],
             ),
@@ -309,7 +428,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildStatCard({required IconData icon, required String label, required String value}) {
+  Widget _buildStatCard(
+      {required IconData icon, required String label, required String value}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -411,7 +531,8 @@ class _VehicleCard extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFF1F2937)),
             ),
-            child: const Icon(LucideIcons.chevronRight, color: AppTheme.mutedForeground, size: 16),
+            child: const Icon(LucideIcons.chevronRight,
+                color: AppTheme.mutedForeground, size: 16),
           ),
         ],
       ),
@@ -426,8 +547,9 @@ class _SecurityStatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = isSafe ? AppTheme.primaryColor : const Color(0xFFEF4444);
-    
+    final statusColor =
+        isSafe ? AppTheme.primaryColor : const Color(0xFFEF4444);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(

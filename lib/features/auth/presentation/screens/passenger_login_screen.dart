@@ -352,114 +352,18 @@ class _PassengerLoginScreenState extends State<PassengerLoginScreen> {
                               }
 
                               setState(() => _isLoading = true);
-                              try {
-                                final nokiaService =
-                                    context.read<NokiaApiService>();
-                                final fullPhone = '$selectedCode$phone';
+                              
+                              // Mock delay for passenger verification
+                              await Future.delayed(const Duration(seconds: 1));
 
-                                // 1. SIM Swap Guard (Server-to-Server)
-                                final isSimSwapped =
-                                    await nokiaService.detectSimSwap(fullPhone);
-                                if (isSimSwapped) {
-                                  final swapDate = await nokiaService
-                                      .getSimSwapDate(fullPhone);
-                                  throw Exception(
-                                      'Registration failed: SIM swap detected${swapDate != null ? " on $swapDate" : ""}.');
-                                }
-
-                                // 2. Fast Authorization Flow (3-legged)
-                                final state = const Uuid().v4();
-                                final nonce = const Uuid().v4();
-
-                                final authUrl = await nokiaService.getAuthUrl(
-                                    fullPhone, state, nonce);
-
-                                if (!await launchUrl(Uri.parse(authUrl),
-                                    mode: LaunchMode.externalApplication)) {
-                                  throw Exception(
-                                      'Could not launch authorization portal.');
-                                }
-
-                                if (!mounted) return;
-                                final String? code = await showDialog<String>(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder: (context) {
-                                      final controller =
-                                          TextEditingController();
-                                      return AlertDialog(
-                                        backgroundColor:
-                                            const Color(0xFF111827),
-                                        title: Text('Verification Required',
-                                            style: GoogleFonts.spaceGrotesk(
-                                                color: Colors.white)),
-                                        content: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                                'Please complete the consent in your browser, then enter the verification code received:',
-                                                style: GoogleFonts.spaceGrotesk(
-                                                    color: AppTheme
-                                                        .mutedForeground)),
-                                            const SizedBox(height: 16),
-                                            TextField(
-                                              controller: controller,
-                                              style: const TextStyle(
-                                                  color: Colors.white),
-                                              decoration: const InputDecoration(
-                                                hintText: 'Enter Code',
-                                                hintStyle: TextStyle(
-                                                    color: Colors.grey),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(
-                                                context,
-                                                controller.text.trim()),
-                                            child: const Text('Verify'),
-                                          ),
-                                        ],
-                                      );
-                                    });
-
-                                if (code == null || code.isEmpty) {
-                                  throw Exception(
-                                      'Verification canceled or invalid code.');
-                                }
-
-                                // 3. Final Number Verification
-                                final isVerified = await nokiaService
-                                    .verifyNumberWithCode(
-                                        fullPhone, code, state);
-                                if (!isVerified) {
-                                  throw Exception(
-                                      'Number verification failed. Access blocked.');
-                                }
-
-                                if (!mounted) return;
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const OtpVerificationScreen(
-                                              isDriver: false)),
-                                );
-                              } catch (e) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(e
-                                        .toString()
-                                        .replaceAll('Exception: ', '')),
-                                    backgroundColor: const Color(0xFFEF4444),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              } finally {
-                                if (mounted) setState(() => _isLoading = false);
-                              }
+                              if (!mounted) return;
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (context) =>
+                                        OtpVerificationScreen(
+                                            isDriver: false,
+                                            phoneNumber: phone)),
+                              );
                             },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,

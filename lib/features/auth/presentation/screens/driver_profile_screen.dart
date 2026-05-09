@@ -4,12 +4,80 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:safetransit_ai/core/theme/app_theme.dart';
 
+import 'package:provider/provider.dart';
+import 'package:safetransit_ai/core/services/firebase_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'splash_screen.dart';
+
 class DriverProfileScreen extends StatelessWidget {
   const DriverProfileScreen({super.key});
 
+  Future<void> _logout(BuildContext context) async {
+    print('--- LOGOUT INITIATED ---');
+    try {
+      final firebaseService = context.read<FirebaseService>();
+      final prefs = await SharedPreferences.getInstance();
+      
+      // 1. Mark as manual logout to prevent auto-resume in Splash
+      await prefs.setBool('manualLogout', true);
+      
+      // 2. Clear all local session data
+      await prefs.remove('profileSetupComplete');
+      await prefs.remove('lastActiveTime');
+      
+      // 3. Firebase logout
+      await firebaseService.signOut();
+      print('Firebase signed out');
+      
+      if (context.mounted) {
+        // 4. Return to Splash with a clean state
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const SplashScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      print('Logout error: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final firebaseService = context.read<FirebaseService>();
+    final user = firebaseService.currentUser;
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: user != null ? firebaseService.documentStream('users', user.uid) : null,
+      builder: (context, snapshot) {
+        final userData = snapshot.data?.data() as Map<String, dynamic>?;
+        final name = userData?['name'] ?? 'Driver';
+        final vehicleType = userData?['vehicleType'] ?? 'Vehicle';
+        final vehicleId = userData?['vehicleId'] ?? 'ID';
+        String joinedDate = '2024';
+        if (userData?['createdAt'] != null) {
+          final dt = userData!['createdAt'] is Timestamp 
+              ? (userData!['createdAt'] as Timestamp).toDate()
+              : DateTime.tryParse(userData!['createdAt'].toString()) ?? DateTime.now();
+          joinedDate = '${dt.year}';
+        } else if (user?.metadata.creationTime != null) {
+          joinedDate = '${user!.metadata.creationTime!.year}';
+        }
+
+        final totalTrips = userData?['totalTrips']?.toString() ?? '0';
+        final earnings = userData?['earnings']?.toString() ?? '0.0';
+        
+        int joinedYears = 0;
+        if (userData?['createdAt'] != null) {
+          final dt = userData!['createdAt'] is Timestamp 
+              ? (userData!['createdAt'] as Timestamp).toDate()
+              : DateTime.tryParse(userData!['createdAt'].toString()) ?? DateTime.now();
+          joinedYears = DateTime.now().difference(dt).inDays ~/ 365;
+        } else if (user?.metadata.creationTime != null) {
+          joinedYears = DateTime.now().difference(user!.metadata.creationTime!).inDays ~/ 365;
+        }
+
+        return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -51,10 +119,8 @@ class DriverProfileScreen extends StatelessWidget {
                       ),
                       _buildHeaderButton(
                         context,
-                        icon: LucideIcons.settings,
-                        onTap: () {
-                          // TODO: Open Settings
-                        },
+                        icon: LucideIcons.logOut,
+                        onTap: () => _logout(context),
                       ),
                     ],
                   ),
@@ -117,7 +183,7 @@ class DriverProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'John Doe',
+                      name,
                       style: GoogleFonts.spaceGrotesk(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -127,7 +193,7 @@ class DriverProfileScreen extends StatelessWidget {
                     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1),
                     const SizedBox(height: 4),
                     Text(
-                      'SafeTransit Driver since 2024',
+                      'SafeTransit Driver since $joinedDate',
                       style: GoogleFonts.spaceGrotesk(
                         fontSize: 14,
                         color: AppTheme.mutedForeground,
@@ -143,11 +209,11 @@ class DriverProfileScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Row(
                     children: [
-                      Expanded(child: _buildStatItem('Total Trips', '1,248')),
+                      Expanded(child: _buildStatItem('Total Trips', totalTrips)),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildStatItem('Earnings', '\$4.2k')),
+                      Expanded(child: _buildStatItem('Earnings', '\$$earnings')),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildStatItem('Joined', '2y')),
+                      Expanded(child: _buildStatItem('Joined', '${joinedYears}y')),
                     ],
                   ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1),
                 ),
@@ -159,8 +225,8 @@ class DriverProfileScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Column(
                     children: [
-                      _buildMenuItem(LucideIcons.user, 'Personal Information', 'Name, Email, Phone'),
-                      _buildMenuItem(LucideIcons.car, 'Vehicle Details', 'Bus, XYZ-9876'),
+                      _buildMenuItem(LucideIcons.user, 'Personal Information', 'Name: $name'),
+                      _buildMenuItem(LucideIcons.car, 'Vehicle Details', '$vehicleType, $vehicleId'),
                       _buildMenuItem(LucideIcons.wallet, 'Payment & Wallet', 'Withdraw, History'),
                       _buildMenuItem(LucideIcons.fileText, 'Documents', 'License, Insurance'),
                       _buildMenuItem(LucideIcons.messageCircle, 'Support & Help', 'FAQ, Live Chat'),
@@ -174,9 +240,7 @@ class DriverProfileScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).popUntil((route) => route.isFirst);
-                    },
+                    onTap: () => _logout(context),
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 18),
@@ -204,12 +268,14 @@ class DriverProfileScreen extends StatelessWidget {
                   ),
                 ).animate().fadeIn(delay: 800.ms).slideY(begin: 0.1),
 
-                const SizedBox(height: 40),
-              ],
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -297,15 +363,16 @@ class DriverProfileScreen extends StatelessWidget {
   Widget _buildHeaderButton(BuildContext context, {required IconData icon, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque, // Ensures the entire container area is clickable
       child: Container(
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
           color: const Color(0xFF111827).withOpacity(0.4),
           shape: BoxShape.circle,
           border: Border.all(color: const Color(0xFF1F2937)),
         ),
-        child: Icon(icon, color: Colors.white, size: 18),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }

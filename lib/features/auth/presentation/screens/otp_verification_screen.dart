@@ -6,10 +6,17 @@ import 'dart:async';
 import 'package:safetransit_ai/core/theme/app_theme.dart';
 import 'driver_profile_setup_screen.dart';
 import 'home_screen.dart';
+import 'passenger_home_screen.dart';
+import 'verification_status_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:safetransit_ai/core/services/firebase_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final bool isDriver;
-  const OtpVerificationScreen({super.key, this.isDriver = false});
+  final String? phoneNumber;
+  const OtpVerificationScreen({super.key, this.isDriver = false, this.phoneNumber});
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -315,15 +322,79 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
+                            // Record last active time for session management
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setString('lastActiveTime', DateTime.now().toIso8601String());
+
                             if (widget.isDriver) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (context) => const DriverProfileSetupScreen()),
-                              );
+                              // Check if profile already exists in Firestore for this phone number
+                              try {
+                                final firebaseService = context.read<FirebaseService>();
+                                final phoneKey = widget.phoneNumber?.replaceAll('+', '') ?? 'unknown';
+                                
+                                // 1. Save phone number locally for future session resumption
+                                if (widget.phoneNumber != null) {
+                                  await prefs.setString('userPhone', widget.phoneNumber!);
+                                }
+
+                                // 2. Check if user already exists by phone number (using phone as doc ID)
+                                final doc = await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(phoneKey)
+                                    .get();
+                                
+                                if (doc.exists) {
+                                  final data = doc.data() as Map<String, dynamic>?;
+                                  if (data?['profileSetupComplete'] == true) {
+                                    // Existing driver found! Skip setup.
+                                    print('Returning driver detected: ${widget.phoneNumber}');
+                                    
+                                    if (firebaseService.currentUser == null) {
+                                      await firebaseService.signInAnonymously();
+                                    }
+
+                                    // Sync to local storage
+                                    await prefs.setBool('profileSetupComplete', true);
+                                    
+                                    if (mounted) {
+                                      Navigator.of(context).pushAndRemoveUntil(
+                                        MaterialPageRoute(builder: (context) => const VerificationStatusScreen()),
+                                        (route) => false,
+                                      );
+                                      return;
+                                    }
+                                  }
+                                }
+
+                                // 3. If not found, sign in and go to setup
+                                if (firebaseService.currentUser == null) {
+                                  await firebaseService.signInAnonymously();
+                                }
+                                
+                                if (mounted) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (context) => DriverProfileSetupScreen(
+                                      phoneNumber: widget.phoneNumber,
+                                    )),
+                                  );
+                                }
+                              } catch (e) {
+                                print('Login check error: $e');
+                                if (mounted) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (context) => DriverProfileSetupScreen(
+                                      phoneNumber: widget.phoneNumber,
+                                    )),
+                                  );
+                                }
+                              }
                             } else {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(builder: (context) => const HomeScreen()),
-                              );
+                              if (mounted) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (context) => const PassengerHomeScreen()),
+                                );
+                              }
                             }
                           },
                           style: ElevatedButton.styleFrom(

@@ -3,10 +3,138 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:safetransit_ai/core/theme/app_theme.dart';
+import 'package:safetransit_ai/core/services/firebase_service.dart';
+import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'end_trip_screen.dart';
 
-class LiveTrackingScreen extends StatelessWidget {
+import 'package:safetransit_ai/core/services/nokia_api_service.dart';
+import 'dart:async';
+
+class LiveTrackingScreen extends StatefulWidget {
   const LiveTrackingScreen({super.key});
+
+  @override
+  State<LiveTrackingScreen> createState() => _LiveTrackingScreenState();
+}
+
+class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
+  bool _isReachable = true;
+  String _connectivity = 'DATA';
+  Timer? _locationTimer;
+  Timer? _durationTimer;
+  DateTime _startTime = DateTime.now();
+  String _duration = '00:00';
+  double? _lat;
+  double? _lng;
+  
+  @override
+  void initState() {
+    super.initState();
+    _startTime = DateTime.now();
+    _initStatusListener();
+    _startLocationTracking();
+    _startDurationTimer();
+  }
+
+  @override
+  void dispose() {
+    _locationTimer?.cancel();
+    _durationTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startDurationTimer() {
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final diff = DateTime.now().difference(_startTime);
+      final minutes = diff.inMinutes.remainder(60).toString().padLeft(2, '0');
+      final seconds = diff.inSeconds.remainder(60).toString().padLeft(2, '0');
+      final hours = diff.inHours > 0 ? '${diff.inHours}:' : '';
+      
+      if (mounted) {
+        setState(() {
+          _duration = '$hours$minutes:$seconds';
+        });
+      }
+    });
+  }
+
+  void _startLocationTracking() {
+    // 1. Immediate initial update
+    _updateLiveLocation();
+
+    // 2. Periodic updates every 15 seconds
+    _locationTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      _updateLiveLocation();
+    });
+  }
+
+  Future<void> _updateLiveLocation() async {
+    try {
+      final nokiaService = context.read<NokiaApiService>();
+      final firebaseService = context.read<FirebaseService>();
+      final user = firebaseService.currentUser;
+
+      if (user != null) {
+        // Retrieve from NaC network
+        const demoPhone = '+99999991000';
+        final locationData = await nokiaService.getLocation(demoPhone);
+        
+        final lat = locationData['latitude'] ?? locationData['lat'] ?? 0.0;
+        final lng = locationData['longitude'] ?? locationData['long'] ?? 0.0;
+
+        if (mounted) {
+          setState(() {
+            _lat = lat;
+            _lng = lng;
+          });
+        }
+
+        // Sync to Firestore for Passenger Side
+        final syncData = {
+          'lastKnownLocation': {
+            'latitude': lat,
+            'longitude': lng,
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        firebaseService.updateUserData(user.uid, syncData);
+        firebaseService.setDocument('drivers', user.uid, syncData, merge: true);
+      }
+    } catch (e) {
+      print('Location refresh error: $e');
+    }
+  }
+
+  void _initStatusListener() {
+    final firebaseService = context.read<FirebaseService>();
+    final user = firebaseService.currentUser;
+    if (user != null) {
+      firebaseService.getDriverStatusStream(user.uid).listen((doc) {
+        if (doc.exists && mounted) {
+          final data = doc.data() as Map<String, dynamic>;
+          setState(() {
+            _isReachable = data['reachable'] ?? false;
+            final connectivityList = data['connectivity'] as List<dynamic>?;
+            _connectivity = (connectivityList != null && connectivityList.isNotEmpty) 
+                ? connectivityList.join(' + ') 
+                : 'NONE';
+          });
+          
+          if (!_isReachable) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Warning: Network connectivity lost. Your status is now OFFLINE.'),
+                backgroundColor: Color(0xFFEF4444),
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -223,12 +351,12 @@ class LiveTrackingScreen extends StatelessWidget {
                                   Container(
                                     width: 12,
                                     height: 12,
-                                    decoration: const BoxDecoration(
-                                      color: AppTheme.primaryColor,
+                                    decoration: BoxDecoration(
+                                      color: _isReachable ? AppTheme.primaryColor : const Color(0xFFEF4444),
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: AppTheme.primaryColor,
+                                          color: _isReachable ? AppTheme.primaryColor : const Color(0xFFEF4444),
                                           blurRadius: 8,
                                         ),
                                       ],
@@ -236,7 +364,7 @@ class LiveTrackingScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    'Online',
+                                    _isReachable ? 'Online' : 'Offline',
                                     style: GoogleFonts.spaceGrotesk(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
@@ -245,6 +373,26 @@ class LiveTrackingScreen extends StatelessWidget {
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 8),
+                              if (_lat != null && _lng != null)
+                                Text(
+                                  'Loc: ${_lat!.toStringAsFixed(4)}, ${_lng!.toStringAsFixed(4)}',
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontSize: 12,
+                                    color: AppTheme.primaryColor.withOpacity(0.8),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              if (_isReachable) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Network: $_connectivity',
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontSize: 12,
+                                    color: AppTheme.mutedForeground,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                           Column(
@@ -259,7 +407,7 @@ class LiveTrackingScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '24:15',
+                                _duration,
                                 style: GoogleFonts.spaceGrotesk(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,

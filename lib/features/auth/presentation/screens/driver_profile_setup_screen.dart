@@ -5,10 +5,13 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:safetransit_ai/core/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:safetransit_ai/core/services/firebase_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'verification_status_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DriverProfileSetupScreen extends StatefulWidget {
-  const DriverProfileSetupScreen({super.key});
+  final String? phoneNumber;
+  const DriverProfileSetupScreen({super.key, this.phoneNumber});
 
   @override
   State<DriverProfileSetupScreen> createState() => _DriverProfileSetupScreenState();
@@ -57,15 +60,21 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
           'name': _nameController.text.trim(),
           'vehicleType': _selectedVehicleType,
           'vehicleId': _vehicleIdController.text.trim(),
+          'phoneNumber': widget.phoneNumber,
           'userType': 'driver',
           'profileSetupComplete': true,
-          'updatedAt': DateTime.now().toIso8601String(),
+          'uid': user.uid, // Store UID as a field, not as the doc ID
+          'updatedAt': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
         };
-        print('Saving to Firestore (users/${user.uid}): $profileData');
+        
+        // Use sanitized phone number as doc ID for persistence across anonymous sessions
+        final phoneKey = widget.phoneNumber?.replaceAll('+', '') ?? user.uid;
+        print('Saving to Firestore (users/$phoneKey): $profileData');
         
         try {
           // Set a 5-second timeout for the database write to prevent hanging during the demo
-          await firebaseService.createUserData(user.uid, profileData).timeout(
+          await firebaseService.setDocument('users', phoneKey, profileData).timeout(
             const Duration(seconds: 5),
             onTimeout: () {
               print('Firestore write timed out - proceeding to next screen anyway for demo');
@@ -77,11 +86,19 @@ class _DriverProfileSetupScreenState extends State<DriverProfileSetupScreen> {
         }
 
         if (mounted) {
+          print('Saving setup status and phone to SharedPreferences');
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('profileSetupComplete', true);
+          if (widget.phoneNumber != null) {
+            await prefs.setString('userPhone', widget.phoneNumber!);
+          }
+          
           print('Navigating to VerificationStatusScreen');
-          Navigator.of(context).push(
+          Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(
               builder: (context) => const VerificationStatusScreen(),
             ),
+            (route) => false,
           );
         }
       }
