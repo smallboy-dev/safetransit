@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum UserType {
   passenger,
@@ -100,12 +101,20 @@ class User extends Equatable {
       profileImageUrl: map['profileImageUrl'],
       isVerified: map['isVerified'] ?? false,
       isActive: map['isActive'] ?? true,
-      createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
-      lastActiveAt: DateTime.parse(map['lastActiveAt'] ?? DateTime.now().toIso8601String()),
+      createdAt: _parseDateTime(map['createdAt']),
+      lastActiveAt: _parseDateTime(map['lastActiveAt']),
       location: map['location'],
       vehicleInfo: map['vehicleInfo'],
       rating: (map['rating'] ?? 0.0).toDouble(),
     );
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+    if (value is DateTime) return value;
+    return DateTime.now();
   }
 
   @override
