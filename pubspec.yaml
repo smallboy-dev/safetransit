@@ -1,0 +1,65 @@
+name: safetransit_ai
+description: SafeTransit AI - Telecom-powered urban mobility platform for African cities
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management
+  provider: ^6.1.1
+  flutter_bloc: ^8.1.3
+  
+  # HTTP & API
+  http: ^1.1.2
+  
+  # UI Components
+  cupertino_icons: ^1.0.6
+  
+  # Utilities
+  uuid: ^4.2.1
+  
+  # Security & Encryption
+  crypto: ^3.0.3
+  
+  # Date & Time
+  intl: ^0.20.2
+  
+  # Equatable for BLoC
+  equatable: ^2.0.5
+
+  # Firebase
+  firebase_core: any
+  firebase_auth: any
+  cloud_firestore: any
+  firebase_storage: any
+  firebase_messaging: any
+  cloud_functions: any
+
+  # UI Components & Design
+  google_fonts: ^6.2.1
+  lucide_icons_flutter: ^3.1.13
+  flutter_animate: ^4.5.0
+  device_preview: ^1.2.0
+  url_launcher: ^6.2.4
+  shared_preferences: ^2.5.5
+  share_plus: ^13.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/config/
+  
+  
